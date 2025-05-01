@@ -8,7 +8,42 @@
             app.MapPost("/signin", SignIn);
             return app;
         }
+      
+        [Authorize(Roles = "Admin")]
+        [Authorize(Roles = "Client")]
+        [Authorize(Roles = "Supplier")]
+        [ApiController]
+        [Route("api/[controller]")]
 
+        //Admin
+        public class AdminController : ControllerBase
+        {
+            [HttpGet("data")]
+            public IActionResult GetAdminData()
+            {
+                return Ok("Données visibles uniquement par les admins.");
+            }
+        }
+
+        // Client
+        public class ClientController : ControllerBase
+        {
+            [HttpGet("data")]
+            public IActionResult GetClientData()
+            {
+                return Ok("Données visibles uniquement par les clients.");
+            }
+        }
+
+        //Suplier
+        public class SupplierController : ControllerBase
+        {
+            [HttpGet("data")]
+            public IActionResult GetSupplierData()
+            {
+                return Ok("Données visibles uniquement par les fournisseurs.");
+            }
+        }
         // Méthode pour inscrire un utilisateur et lui assigner un rôle par défaut
         private static async Task<IResult> CreateUser(
             UserManager<AppUser> userManager,
@@ -19,7 +54,7 @@
             {
                 UserName = userRegistrationModel.Email,
                 Email = userRegistrationModel.Email,
-                FullName = userRegistrationModel.FullName,
+              
             };
 
             var result = await userManager.CreateAsync(user, userRegistrationModel.Password);
@@ -59,6 +94,8 @@
                 {
                     new Claim("UserID", user.Id.ToString())
                 };
+
+
 
                 // Ajouter les rôles de l'utilisateur dans le token JWT
                 var userRoles = await userManager.GetRolesAsync(user);

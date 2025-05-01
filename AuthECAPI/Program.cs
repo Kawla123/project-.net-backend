@@ -12,42 +12,53 @@ using System.Text;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// ------------------- Services ----------------------
-// Ajoute les services pour les contrôleurs, Swagger, etc.
+// Add services to the container
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
-// ------------------- Ajout de l'Identity ----------------------
-// Assurez-vous que Identity est configuré avec les bonnes options
-builder.Services.AddIdentity<AppUser, IdentityRole>()
-                .AddEntityFrameworkStores<ApplicationDbContext>()
-                .AddDefaultTokenProviders(); // Pour la gestion des tokens comme pour la réinitialisation du mot de passe
+// Configure DbContext
+builder.Services.AddDbContext<ApplicationDbContext>(options =>
+    options.UseSqlServer(builder.Configuration.GetConnectionString("DefaultConnection")));
 
-// ------------------- Services personnalisés -------------------
-builder.Services.InjectDbContext(builder.Configuration)
-                .AddAppConfig(builder.Configuration)
-                .AddIdentityHandlersAndStores()
-                .ConfigureIdentityOptions()
-                .AddIdentityAuth(builder.Configuration);
+// Configure Identity
+builder.Services.AddIdentity<ApplicationUser, IdentityRole>()
+    .AddEntityFrameworkStores<ApplicationDbContext>()
+    .AddDefaultTokenProviders();
 
-// ------------------- CORS policy ----------------------
-builder.Services.AddCors(options =>
+// Configure Authentication
+builder.Services.AddAuthentication(options =>
 {
-    options.AddPolicy("AllowAngular",
-        policy => policy.WithOrigins("http://localhost:4200")
-                        .AllowAnyHeader()
-                        .AllowAnyMethod());
+    options.DefaultAuthenticateScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultChallengeScheme = JwtBearerDefaults.AuthenticationScheme;
+    options.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
+})
+.AddJwtBearer(options =>
+{
+    options.SaveToken = true;
+    options.RequireHttpsMetadata = false;
+    options.TokenValidationParameters = new TokenValidationParameters()
+    {
+        ValidateIssuer = true,
+        ValidateAudience = true,
+        ValidAudience = builder.Configuration["JWT:ValidAudience"],
+        ValidIssuer = builder.Configuration["JWT:ValidIssuer"],
+        IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(builder.Configuration["JWT:Secret"]))
+    };
 });
 
-// ------------------- RoleManager et UserManager ----------------------
-builder.Services.AddScoped<RoleManager<IdentityRole>>();  // Ajout du service RoleManager
-builder.Services.AddScoped<UserManager<AppUser>>();       // Ajout du service UserManager
+// Configure CORS
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("AllowAngularApp",
+        builder => builder.WithOrigins("http://localhost:4200")
+            .AllowAnyHeader()
+            .AllowAnyMethod());
+});
 
 var app = builder.Build();
 
-// ------------------- Middleware ----------------------
-// Swagger UI pour la dev
+// Configure the HTTP request pipeline
 if (app.Environment.IsDevelopment())
 {
     app.UseSwagger();
@@ -55,66 +66,34 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+app.UseCors("AllowAngularApp");
 
-app.UseCors("AllowAngular");
-
-app.UseAuthentication();  // Ajoute le middleware pour l'authentification
-app.UseAuthorization();   // Ajoute le middleware pour l'autorisation
+app.UseAuthentication();
+app.UseAuthorization();
 
 app.MapControllers();
 
-// ------------------- Créer les rôles et utilisateur administrateur --------------------
+// Create roles and admin user
 using (var scope = app.Services.CreateScope())
 {
-    var roleManager = scope.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
-    var userManager = scope.ServiceProvider.GetRequiredService<UserManager<AppUser>>();
+    var services = scope.ServiceProvider;
+    var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
+    var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-    // Crée les rôles au démarrage de l'application
-    await CreateRolesAsync(roleManager);
-
-    // Optionnel : Crée un utilisateur administrateur si nécessaire
-    await SeedAdminUserAsync(userManager);
+    SeedRolesAndUsers(roleManager, userManager).Wait();
 }
 
 app.Run();
 
-// ------------------- Méthode pour créer les rôles -------------------
-public static async Task CreateRolesAsync(RoleManager<IdentityRole> roleManager)
+async Task SeedRolesAndUsers(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
 {
-    string[] roleNames = { "Admin", "Client", "Supplier" };
-
+    // Create roles if they don't exist
+    string[] roleNames = { "Admin", "Supplier", "Client" };
     foreach (var roleName in roleNames)
     {
         var roleExist = await roleManager.RoleExistsAsync(roleName);
         if (!roleExist)
         {
-            await roleManager.CreateAsync(new IdentityRole(roleName));
-        }
-    }
-}
+            await roleManager.CreateAsync(new IdentityRole
+Made with
 
-// ------------------- Méthode pour créer un utilisateur administrateur (optionnel) -------------------
-public static async Task SeedAdminUserAsync(UserManager<AppUser> userManager)
-{
-    var adminEmail = "admin@admin.com";
-    var adminPassword = "Admin@123";
-
-    // Vérifie si un utilisateur admin existe déjà
-    var existingAdmin = await userManager.FindByEmailAsync(adminEmail);
-    if (existingAdmin == null)
-    {
-        var adminUser = new AppUser
-        {
-            UserName = adminEmail,
-            Email = adminEmail,
-        };
-
-        var result = await userManager.CreateAsync(adminUser, adminPassword);
-
-        if (result.Succeeded)
-        {
-            // Assigner le rôle "Admin" à cet utilisateur
-            await userManager.AddToRoleAsync(adminUser, "Admin");
-        }
-    }
-}
