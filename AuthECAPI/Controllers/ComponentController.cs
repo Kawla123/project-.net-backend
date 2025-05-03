@@ -1,98 +1,99 @@
 ﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Security.Claims;
+using System.Threading.Tasks;
+using AuthECAPI.Models;
+using Microsoft.AspNetCore.Authorization;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
-[Route("api/[controller]")]
-[ApiController]
-public class ComponentController : ControllerBase
+namespace AuthECAPI.Controllers
 {
-    private readonly ApplicationDbContext _context;
-
-    public ComponentController(ApplicationDbContext context)
+    [Route("api/[controller]")]
+    [ApiController]
+    public class ComponentController : ControllerBase
     {
-        _context = context;
-    }
+        private readonly AppDbContext _context;
 
-    [HttpGet]
-    public async Task<ActionResult<IEnumerable<Component>>> GetComponents()
-    {
-        return await _context.Components
-            .Where(c => c.AvailableQuantity > 0)
-            .ToListAsync();
-    }
-
-    [HttpGet("{id}")]
-    public async Task<ActionResult<Component>> GetComponent(int id)
-    {
-        var component = await _context.Components.FindAsync(id);
-
-        if (component == null)
+        public ComponentController(AppDbContext context)
         {
-            return NotFound();
+            _context = context;
         }
 
-        return component;
-    }
-
-    [Authorize(Roles = "Supplier")]
-    [HttpPost]
-    public async Task<ActionResult<Component>> CreateComponent(Component component)
-    {
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        component.SupplierId = int.Parse(userId);
-
-        _context.Components.Add(component);
-        await _context.SaveChangesAsync();
-
-        return CreatedAtAction(nameof(GetComponent), new { id = component.Id }, component);
-    }
-
-    [Authorize(Roles = "Supplier")]
-    [HttpPut("{id}")]
-    public async Task<IActionResult> UpdateComponent(int id, Component component)
-    {
-        if (id != component.Id)
+        // Endpoint pour récupérer tous les composants disponibles
+        [HttpGet]
+        public async Task<ActionResult<IEnumerable<Component>>> GetComponents()
         {
-            return BadRequest();
+            var components = await _context.Components
+                .Where(c => c.AvailableQuantity > 0)
+                .ToListAsync();
+
+            return Ok(components); // Retourne une liste de composants disponibles
         }
 
-        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
-        var existingComponent = await _context.Components.FindAsync(id);
-
-        if (existingComponent == null)
+        // Endpoint pour récupérer un composant par son ID
+        [HttpGet("{id}")]
+        public async Task<ActionResult<Component>> GetComponent(int id)
         {
-            return NotFound();
+            var component = await _context.Components.FindAsync(id);
+            if (component == null)
+                return NotFound(); // Si le composant n'existe pas, retour NotFound()
+
+            return Ok(component); // Retourne le composant trouvé
         }
 
-        if (existingComponent.SupplierId != int.Parse(userId))
+        // Endpoint pour mettre à jour un composant
+        [Authorize(Roles = "Supplier")]
+        [HttpPut("{id}")]
+        public async Task<IActionResult> UpdateComponent(int id, Component component)
         {
-            return Forbid();
-        }
-
-        existingComponent.Name = component.Name;
-        existingComponent.Description = component.Description;
-        existingComponent.PricePerUnit = component.PricePerUnit;
-        existingComponent.AvailableQuantity = component.AvailableQuantity;
-
-        try
-        {
-            await _context.SaveChangesAsync();
-        }
-        catch (DbUpdateConcurrencyException)
-        {
-            if (!ComponentExists(id))
+            if (id != component.Id)
             {
-                return NotFound();
+                return BadRequest(); // Retourne une erreur si les IDs ne correspondent pas
             }
-            else
+
+            var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+            var existingComponent = await _context.Components.FindAsync(id);
+
+            if (existingComponent == null)
             {
-                throw;
+                return NotFound(); // Si le composant n'existe pas, retourne NotFound()
             }
+
+            if (existingComponent.SupplierId != int.Parse(userId))
+            {
+                return Forbid(); // Si l'utilisateur n'est pas le fournisseur du composant, retourne Forbid()
+            }
+
+            existingComponent.Name = component.Name;
+            existingComponent.Description = component.Description;
+            existingComponent.PricePerUnit = component.PricePerUnit;
+            existingComponent.AvailableQuantity = component.AvailableQuantity;
+
+            try
+            {
+                await _context.SaveChangesAsync(); // Sauvegarde les modifications dans la base de données
+            }
+            catch (DbUpdateConcurrencyException)
+            {
+                if (!ComponentExists(id))
+                {
+                    return NotFound(); // Si le composant n'existe pas dans la base de données, retourne NotFound()
+                }
+                else
+                {
+                    throw; // Lance une exception si une autre erreur se produit
+                }
+            }
+
+            return NoContent(); // Retourne NoContent si la mise à jour est réussie
         }
 
-        return NoContent();
-    }
-
-    private bool ComponentExists(int id)
-    {
-        return _context.Components.Any(e => e.Id == id);
+        // Méthode pour vérifier si un composant existe dans la base de données
+        private bool ComponentExists(int id)
+        {
+            return _context.Components.Any(e => e.Id == id);
+        }
     }
 }

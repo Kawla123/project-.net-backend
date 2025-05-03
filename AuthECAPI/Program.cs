@@ -80,20 +80,43 @@ using (var scope = app.Services.CreateScope())
     var roleManager = services.GetRequiredService<RoleManager<IdentityRole>>();
     var userManager = services.GetRequiredService<UserManager<ApplicationUser>>();
 
-    SeedRolesAndUsers(roleManager, userManager).Wait();
+    await SeedRolesAndUsers(roleManager, userManager);
 }
 
 app.Run();
 
+// Méthode pour créer les rôles et un utilisateur admin
 async Task SeedRolesAndUsers(RoleManager<IdentityRole> roleManager, UserManager<ApplicationUser> userManager)
 {
-    // Create roles if they don't exist
     string[] roleNames = { "Admin", "Supplier", "Client" };
+
     foreach (var roleName in roleNames)
     {
-        var roleExist = await roleManager.RoleExistsAsync(roleName);
-        if (!roleExist)
+        var roleExists = await roleManager.RoleExistsAsync(roleName);
+        if (!roleExists)
         {
-            await roleManager.CreateAsync(new IdentityRole
-Made with
+            await roleManager.CreateAsync(new IdentityRole(roleName));
+        }
+    }
 
+    // Créer un utilisateur admin par défaut s'il n'existe pas
+    var adminEmail = "admin@example.com";
+    var adminUser = await userManager.FindByEmailAsync(adminEmail);
+
+    if (adminUser == null)
+    {
+        var user = new ApplicationUser
+        {
+            UserName = adminEmail,
+            Email = adminEmail,
+            EmailConfirmed = true
+        };
+
+        var result = await userManager.CreateAsync(user, "Admin@123"); // mot de passe temporaire
+
+        if (result.Succeeded)
+        {
+            await userManager.AddToRoleAsync(user, "Admin");
+        }
+    }
+}

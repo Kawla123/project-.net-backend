@@ -1,21 +1,33 @@
 ﻿using Microsoft.AspNetCore.Identity;
 using System.ComponentModel.DataAnnotations.Schema;
+using System;
+using AuthECAPI.Controllers;
+using AuthECAPI.Extensions;
+using AuthECAPI.Models;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
 
 namespace AuthECAPI.Models
 {
-    public class AppUser:IdentityUser
+    public class AppUser : IdentityUser
     {
         [PersonalData]
-        [Column(TypeName ="nvarchar(150)")]
-        public string FullName { get; set; }
+        [Column(TypeName = "nvarchar(150)")]
+        
 
         public string FirstName { get; set; }
         public string LastName { get; set; }
         public UserRole Role { get; set; }
         public virtual ICollection<Order> Orders { get; set; }
-           
-      
-}
+
+
+    }
     public enum UserRole
     {
         Admin,
@@ -32,7 +44,7 @@ namespace AuthECAPI.Models
         public decimal Price { get; set; }
         public int AvailableQuantity { get; set; }
         public int SupplierId { get; set; }
-        public virtual ApplicationUser Supplier { get; set; }
+        public virtual AppUser Supplier { get; set; }
         public virtual ICollection<OrderItem> OrderItems { get; set; }
         public string ImageUrl { get; set; }
     }
@@ -45,7 +57,7 @@ namespace AuthECAPI.Models
         public decimal PricePerUnit { get; set; }
         public int AvailableQuantity { get; set; }
         public int SupplierId { get; set; }
-        public virtual ApplicationUser Supplier { get; set; }
+        public virtual AppUser Supplier { get; set; }
         public virtual ICollection<CustomParfumComponent> CustomParfumComponents { get; set; }
     }
 
@@ -56,7 +68,7 @@ namespace AuthECAPI.Models
         public DateTime CreatedDate { get; set; }
         public OrderStatus Status { get; set; }
         public string ClientId { get; set; }
-        public virtual ApplicationUser Client { get; set; }
+        public virtual AppUser Client { get; set; }
         public OrderType Type { get; set; } // Standard or Custom
         public decimal TotalPrice { get; set; }
         public virtual ICollection<OrderItem> OrderItems { get; set; }
@@ -107,3 +119,4 @@ namespace AuthECAPI.Models
         public virtual Component Component { get; set; }
         public int Quantity { get; set; }
     }
+}
